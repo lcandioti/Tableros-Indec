@@ -1,16 +1,17 @@
 ﻿<#
-  Descarga los indicadores del Catalogo API-INDEC y genera data/datos.json y data/datos.js.
+  Descarga los indicadores del Catalogo API-INDEC y del BCRA y genera data/datos.json y data/datos.js.
 
   Uso:
     .\scripts\actualizar.ps1              Actualiza los datos (comercio exterior: incremental)
     .\scripts\actualizar.ps1 -Completo    Vuelve a bajar comercio exterior desde $AnioInicioComercio
     .\scripts\actualizar.ps1 -Descubrir   Lista los valores de cada dimension en data/_catalogo.txt
+    .\scripts\actualizar.ps1 -SoloBCRA    Actualiza solo dolar, tasas y reservas (no requiere token)
 
   Token: variable de entorno INDEC_TOKEN (local: de usuario; GitHub Actions: secret).
   Funciona en Windows PowerShell 5.1 y en PowerShell 7.
 #>
 [CmdletBinding()]
-param([switch]$Completo, [switch]$Descubrir)
+param([switch]$Completo, [switch]$Descubrir, [switch]$SoloBCRA)
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -24,10 +25,10 @@ $Inv = [Globalization.CultureInfo]::InvariantCulture
 
 $Token = $env:INDEC_TOKEN
 if (-not $Token) { $Token = [Environment]::GetEnvironmentVariable('INDEC_TOKEN', 'User') }
-if (-not $Token) {
+if (-not $Token -and -not $SoloBCRA) {
     throw 'Falta el token. Generalo en https://api.indec.gob.ar/ y guardalo en la variable de entorno INDEC_TOKEN.'
 }
-$Token = $Token.Trim()
+if ($Token) { $Token = $Token.Trim() }
 $Cabeceras = @{ Authorization = "Bearer $Token"; Accept = 'application/json' }
 
 # ---------------------------------------------------------------- API
@@ -155,7 +156,108 @@ function Es-Indice($f) {
     return ($t -match '(?i)[ií]ndice|^\s*i\b|nivel') -and ($t -notmatch '(?i)variaci|var_|incidencia|peso|precio promedio')
 }
 
+$PrevPath = Join-Path $DirDatos 'datos.json'
+$Anterior = $null
+if (Test-Path $PrevPath) { $Anterior = [IO.File]::ReadAllText($PrevPath) | ConvertFrom-Json }
 $Indicadores = [ordered]@{}
+
+# ---------------------------------------------------------------- BCRA (no usa token: nunca se le envia el del INDEC)
+
+function Get-BCRA([int]$Id, [string]$Desde) {
+    $filas = New-Object System.Collections.Generic.List[object]
+    $offset = 0
+    while ($true) {
+        $url = "https://api.bcra.gob.ar/estadisticas/v4.0/monetarias/$Id`?desde=$Desde&limit=3000&offset=$offset"
+        for ($intento = 1; ; $intento++) {
+            try {
+                $r = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 60
+                $o = [Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray()) | ConvertFrom-Json
+                break
+            }
+            catch {
+                if ($intento -ge 4) { throw "Fallo BCRA variable $Id : $($_.Exception.Message)" }
+                Start-Sleep -Seconds ([Math]::Pow(2, $intento))
+            }
+        }
+        $detalle = @($o.results[0].detalle)
+        foreach ($d in $detalle) { $filas.Add($d) }
+        if ($detalle.Count -lt 3000) { break }
+        $offset += 3000
+    }
+    return , $filas
+}
+
+# Pasa una serie diaria a mensual: promedio del mes o, para saldos, ultimo dato del mes.
+function A-Mensual($Filas, [switch]$UltimoDelMes) {
+    $suma = @{}; $n = @{}; $ult = @{}; $ultFecha = @{}
+    foreach ($d in $Filas) {
+        $v = Numero $d.valor
+        if ($null -eq $v) { continue }
+        $m = "$($d.fecha)".Substring(0, 7)
+        $suma[$m] += $v; $n[$m] += 1
+        if (-not $ultFecha.ContainsKey($m) -or "$($d.fecha)" -gt $ultFecha[$m]) { $ultFecha[$m] = "$($d.fecha)"; $ult[$m] = $v }
+    }
+    $mapa = @{}
+    foreach ($m in $suma.Keys) { if ($UltimoDelMes) { $mapa[$m] = $ult[$m] } else { $mapa[$m] = $suma[$m] / $n[$m] } }
+    return $mapa
+}
+
+function Sumar-BCRA {
+    Write-Host 'Descargando BCRA...'
+    $grupos = [ordered]@{
+        dolar    = @(@{ id = 'mayorista'; v = 5; n = 'Mayorista' }, @{ id = 'minorista'; v = 4; n = 'Minorista' })
+        tasas    = @(@{ id = 'badlar'; v = 7; n = 'BADLAR' }, @{ id = 'plazo_fijo'; v = 12; n = 'Plazo fijo a 30 días' }, @{ id = 'tamar'; v = 44; n = 'TAMAR' }, @{ id = 'personales'; v = 14; n = 'Préstamos personales' })
+        reservas = @(@{ id = 'reservas'; v = 1; n = 'Reservas internacionales'; saldo = $true })
+    }
+    try {
+        $nuevo = [ordered]@{}
+        $ultimos = [ordered]@{}
+        foreach ($g in $grupos.Keys) {
+            $series = @{}; $nombres = @{}
+            foreach ($c in $grupos[$g]) {
+                $filas = Get-BCRA $c.v '2015-01-01'
+                if ($filas.Count -eq 0) { throw "BCRA variable $($c.v) sin datos" }
+                $series[$c.id] = A-Mensual $filas -UltimoDelMes:([bool]$c.saldo)
+                $nombres[$c.id] = $c.n
+                $u = $filas | Sort-Object fecha | Select-Object -Last 1
+                $ultimos[$c.id] = [ordered]@{ fecha = "$($u.fecha)"; valor = [Math]::Round((Numero $u.valor), 3) }
+            }
+            $nuevo[$g] = A-Lista $series $nombres
+        }
+        foreach ($k in $nuevo.Keys) { $Indicadores[$k] = $nuevo[$k] }
+        $Indicadores['bcra_ultimos'] = $ultimos
+    }
+    catch {
+        # Si el BCRA no responde se conserva lo anterior: no debe frenar la actualizacion del INDEC.
+        if (-not ($Anterior -and $Anterior.indicadores.dolar)) { throw }
+        Write-Host "::warning::BCRA no disponible, se conservan los datos anteriores. $($_.Exception.Message)"
+        foreach ($k in @('dolar', 'tasas', 'reservas', 'bcra_ultimos')) { $Indicadores[$k] = $Anterior.indicadores.$k }
+    }
+}
+
+function Guardar {
+    if (-not (Test-Path $DirDatos)) { New-Item -ItemType Directory $DirDatos | Out-Null }
+    $jsonInd = $Indicadores | ConvertTo-Json -Depth 8 -Compress
+    if (Test-Path $PrevPath) {
+        $previo = [IO.File]::ReadAllText($PrevPath)
+        if ($previo.EndsWith('"indicadores":' + $jsonInd + '}')) { Write-Host 'Sin cambios en los datos.'; return }
+    }
+    $salida = [ordered]@{ generado = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ', $Inv); fuente = 'INDEC y BCRA'; indicadores = $Indicadores }
+    $json = $salida | ConvertTo-Json -Depth 8 -Compress
+    $utf8 = New-Object Text.UTF8Encoding($false)
+    [IO.File]::WriteAllText($PrevPath, $json, $utf8)
+    [IO.File]::WriteAllText((Join-Path $DirDatos 'datos.js'), "window.INDEC_DATA=$json;", $utf8)
+    Write-Host "Listo: $PrevPath"
+}
+
+if ($SoloBCRA) {
+    if (-not $Anterior) { throw 'SoloBCRA necesita un data/datos.json existente.' }
+    foreach ($p in $Anterior.indicadores.PSObject.Properties) { $Indicadores[$p.Name] = $p.Value }
+    Sumar-BCRA
+    Guardar
+    return
+}
+
 
 Write-Host 'Descargando EMAE...'
 $filas = Get-Filas 'estimador-mensual-de-actividad-economica-nivel-general' 'tipo_de_indicador_descripcion,anio,mes,periodo,tipo_de_indicador'
@@ -248,9 +350,8 @@ function Nombre-De([string]$Columna, [string]$Codigo) {
     if ($nom.ContainsKey($k)) { $nom[$k] } else { $Codigo }
 }
 
-$PrevPath = Join-Path $DirDatos 'datos.json'
 $Prev = $null
-if ((Test-Path $PrevPath) -and -not $Completo) { $Prev = [IO.File]::ReadAllText($PrevPath) | ConvertFrom-Json }
+if (-not $Completo) { $Prev = $Anterior }
 
 # Las tablas de comercio tienen una fila por mes/rubro/subrubro/pais: se agregan aca y solo se guarda lo que usa la pagina.
 function Bajar-Comercio([string]$Tabla, [string]$Grupo, [string]$CampoGrupo, [string]$CampoGrupo2, [string]$CampoValor, [string]$ClavePrev) {
@@ -309,17 +410,5 @@ Bajar-Comercio 'comercio_exterior_exportacion_bienes' 'expo_destinos' 'rubro_cod
 Write-Host 'Descargando importaciones (la primera vez tarda bastante)...'
 Bajar-Comercio 'comercio_exterior_importacion_bienes' 'impo_origenes' 'uso_economico_cod' 'gce_cod' 'valor_CIF' 'impo'
 
-# ---------------------------------------------------------------- Salida
-
-if (-not (Test-Path $DirDatos)) { New-Item -ItemType Directory $DirDatos | Out-Null }
-$jsonInd = $Indicadores | ConvertTo-Json -Depth 8 -Compress
-if (Test-Path $PrevPath) {
-    $previo = [IO.File]::ReadAllText($PrevPath)
-    if ($previo.EndsWith('"indicadores":' + $jsonInd + '}')) { Write-Host 'Sin cambios en los datos.'; return }
-}
-$salida = [ordered]@{ generado = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ', $Inv); fuente = 'INDEC, Catálogo API-INDEC'; indicadores = $Indicadores }
-$json = $salida | ConvertTo-Json -Depth 8 -Compress
-$utf8 = New-Object Text.UTF8Encoding($false)
-[IO.File]::WriteAllText($PrevPath, $json, $utf8)
-[IO.File]::WriteAllText((Join-Path $DirDatos 'datos.js'), "window.INDEC_DATA=$json;", $utf8)
-Write-Host "Listo: $PrevPath"
+Sumar-BCRA
+Guardar
