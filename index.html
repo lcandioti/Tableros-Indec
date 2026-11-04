@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tablero INDEC</title>
+<meta name="description" content="Indicadores económicos de Argentina con datos del Catálogo API-INDEC: actividad, comercio exterior, precios, salarios y empleo.">
+<style>
+:root{color-scheme:light;--plano:#f9f9f7;--sup:#fcfcfb;--t1:#0b0b0b;--t2:#52514e;--t3:#6f6d68;--eje:#898781;--grilla:#e1e0d9;--base:#c3c2b7;--borde:rgba(11,11,11,.10);
+--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--neg:#e34948;--acento:#256abf}
+@media (prefers-color-scheme:dark){:root:where(:not([data-theme="light"])){color-scheme:dark;--plano:#0d0d0d;--sup:#1a1a19;--t1:#f0efec;--t2:#c3c2b7;--t3:#a3a198;--eje:#898781;--grilla:#2c2c2a;--base:#383835;--borde:rgba(255,255,255,.10);
+--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--neg:#e66767;--acento:#6da7ec}}
+:root[data-theme="dark"]{color-scheme:dark;--plano:#0d0d0d;--sup:#1a1a19;--t1:#f0efec;--t2:#c3c2b7;--t3:#a3a198;--eje:#898781;--grilla:#2c2c2a;--base:#383835;--borde:rgba(255,255,255,.10);
+--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--neg:#e66767;--acento:#6da7ec}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:112px}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--plano);color:var(--t1);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--acento)}
+.muro{max-width:1120px;margin:0 auto;padding:0 16px}
+header.cab{padding:40px 0 20px}
+h1{font-size:clamp(28px,5vw,40px);line-height:1.1;margin:0 0 10px;letter-spacing:-.02em}
+.bajada{color:var(--t2);max-width:68ch;margin:0}
+.meta{color:var(--t3);font-size:14px;margin-top:10px}
+.barra{position:sticky;top:0;z-index:10;background:var(--plano);border-bottom:1px solid var(--borde)}
+.barra .muro{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;padding-top:8px;padding-bottom:8px}
+.nav{display:flex;gap:2px 14px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;flex:1 1 320px;min-width:0}
+.nav a{white-space:nowrap;color:var(--t2);text-decoration:none;font-size:14px;padding:4px 0}
+.nav a:hover{color:var(--t1);text-decoration:underline}
+.ctrl{display:flex;align-items:center;gap:8px}
+.rango{display:inline-flex;border:1px solid var(--borde);border-radius:8px;overflow:hidden}
+.rango button{border:0;background:transparent;color:var(--t2);font:inherit;font-size:13px;padding:5px 10px;cursor:pointer;min-height:32px}
+.rango button+button{border-left:1px solid var(--borde)}
+.rango button[aria-pressed="true"]{background:var(--t1);color:var(--plano);font-weight:600}
+.tema{border:1px solid var(--borde);background:transparent;color:var(--t2);border-radius:8px;font:inherit;font-size:13px;padding:5px 10px;cursor:pointer;min-height:32px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin:24px 0 8px}
+.tile{display:block;background:var(--sup);border:1px solid var(--borde);border-radius:10px;padding:14px 16px;color:inherit;text-decoration:none}
+.tile:hover{border-color:var(--base)}
+.tile .et{font-size:13px;color:var(--t2)}
+.tile .val{font-size:clamp(21px,2.4vw,26px);white-space:nowrap;font-weight:650;line-height:1.2;margin-top:4px;letter-spacing:-.01em}
+.tile .sub{font-size:12.5px;color:var(--t3);margin-top:2px}
+section.ind{padding:36px 0 8px;border-top:1px solid var(--borde);margin-top:32px}
+h2{font-size:clamp(22px,3.5vw,28px);line-height:1.2;margin:0 0 6px;letter-spacing:-.01em}
+.lectura{background:var(--sup);border:1px solid var(--borde);border-radius:10px;padding:14px 16px;margin:14px 0 16px;max-width:78ch}
+.lectura strong.t{display:block;font-size:13px;color:var(--t2);font-weight:600;margin-bottom:4px}
+.lectura p{margin:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:14px}
+figure.g{margin:0;background:var(--sup);border:1px solid var(--borde);border-radius:10px;padding:14px 14px 10px;min-width:0}
+figure.g h3{font-size:15px;line-height:1.3;margin:0;font-weight:600}
+figure.g .nota{font-size:13px;color:var(--t2);margin:2px 0 8px}
+.lienzo{position:relative;touch-action:pan-y}
+.lienzo svg{display:block;width:100%;overflow:visible;outline:none}
+.lienzo svg:focus-visible{outline:2px solid var(--acento);outline-offset:2px;border-radius:4px}
+.leyenda{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--t2);margin:0 0 6px}
+.leyenda i{display:inline-block;width:14px;height:2px;margin-right:6px;vertical-align:middle;border-radius:1px}
+.pie{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;font-size:12px;color:var(--t3);margin-top:6px;align-items:center}
+.pie button{background:none;border:0;padding:4px 0;color:var(--acento);font:inherit;cursor:pointer;text-decoration:underline}
+.tabla{max-height:260px;overflow:auto;margin-top:6px;border-top:1px solid var(--grilla)}
+.tabla table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+.tabla th,.tabla td{padding:3px 8px;text-align:right;border-bottom:1px solid var(--grilla);white-space:nowrap}
+.tabla th:first-child,.tabla td:first-child{text-align:left}
+.tabla th{position:sticky;top:0;background:var(--sup);font-weight:600}
+.tip{position:absolute;pointer-events:none;background:var(--sup);border:1px solid var(--base);border-radius:8px;padding:6px 10px;font-size:12.5px;line-height:1.4;box-shadow:0 4px 14px rgba(0,0,0,.14);z-index:5;min-width:120px;max-width:260px}
+.tip .f{color:var(--t2);margin-bottom:2px}
+.tip .r{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.tip .r i{width:12px;height:2px;flex:none;border-radius:1px}
+.tip .r b{font-variant-numeric:tabular-nums;font-weight:650}
+.tip .r span{color:var(--t2);overflow:hidden;text-overflow:ellipsis}
+.expl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:4px 28px;margin-top:16px;color:var(--t2);font-size:15px}
+.expl h4{margin:10px 0 2px;font-size:14px;color:var(--t1)}
+.expl p{margin:0 0 6px}
+.sin{padding:48px 16px;text-align:center;color:var(--t2);font-size:14px}
+.aviso{background:var(--sup);border:1px solid var(--base);border-radius:10px;padding:18px 20px;margin:24px 0}
+footer{margin:48px 0 32px;padding-top:18px;border-top:1px solid var(--borde);color:var(--t3);font-size:13.5px}
+@media print{.barra,.pie button{display:none}section.ind{break-inside:avoid}}
+</style>
+</head>
+<body>
+<div class="muro">
+  <header class="cab">
+    <h1>Tablero INDEC</h1>
+    <p class="bajada">Actividad, comercio exterior, precios, salarios y empleo de la Argentina, con los datos oficiales del Catálogo API-INDEC y una guía para interpretarlos.</p>
+    <p class="meta" id="meta"></p>
+  </header>
+</div>
+<div class="barra"><div class="muro">
+  <nav class="nav" aria-label="Indicadores">
+    <a href="#emae">EMAE</a><a href="#comercio">Comercio</a><a href="#ipc">IPC</a><a href="#salarios">Salarios</a><a href="#icc">Construcción</a><a href="#trabajo">Empleo</a><a href="#mayoristas">Mayoristas</a>
+  </nav>
+  <div class="ctrl">
+    <div class="rango" role="group" aria-label="Período de los gráficos" id="rango">
+      <button data-a="2">2 años</button><button data-a="5">5 años</button><button data-a="0">Todo</button>
+    </div>
+    <button class="tema" id="tema" type="button">Tema</button>
+  </div>
+</div></div>
+<main class="muro" id="app"></main>
+<div class="muro"><footer>
+  <p><strong>Fuente: INDEC</strong>, Catálogo API-INDEC (<a href="https://api.indec.gob.ar/">api.indec.gob.ar</a>). El servicio específico figura al pie de cada gráfico.</p>
+  <p>Las variaciones, sumas de 12 meses y series reales son cálculos de este tablero a partir de los índices publicados, y pueden diferir por redondeo de las que publica el INDEC en sus informes técnicos. Los comentarios son interpretativos: no son una posición del INDEC.</p>
+</footer></div>
+
+<script src="data/datos.js"></script>
+<script>
+"use strict";
+const NS="http://www.w3.org/2000/svg";
+const MES=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+const MESL=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+const EVENTOS=[["2019-08","PASO 2019"],["2020-03","Pandemia"],["2023-12","Devaluación"]];
+const SERV={emae:"Estimador mensual de actividad económica",expo:"Exportaciones de bienes",impo:"Importaciones de bienes",ipc:"Índice de precios al consumidor",sal:"Índice de salarios",icc:"Índice del costo de la construcción",eph:"Principales tasas del mercado de trabajo (EPH)",sipm:"Sistema de índices de precios mayoristas"};
+const D=window.INDEC_DATA;
+/* Nombres legibles: la API trae algunos en mayúsculas o sin tildes. */
+const NOMBRES={expo:{"1":"Productos primarios","2":"Manufacturas agropecuarias (MOA)","3":"Manufacturas industriales (MOI)","4":"Combustibles y energía","9":"Confidencial"},impo:{"1":"Bienes de capital","2":"Bienes intermedios","3":"Combustibles y lubricantes","4":"Piezas para bienes de capital","5":"Bienes de consumo","6":"Vehículos de pasajeros","9":"Resto"}};
+const CORTOS={"1":"Primarios","2":"MOA","3":"MOI","4":"Combustibles"};
+if(D&&D.indicadores)for(const g in NOMBRES)(D.indicadores[g]||[]).forEach(s=>{if(NOMBRES[g][s.id])s.nombre=NOMBRES[g][s.id]});
+const corto=n=>n.split(/[;,]/)[0];
+const nf=(d)=>new Intl.NumberFormat("es-AR",{minimumFractionDigits:d,maximumFractionDigits:d});
+const N0=nf(0),N1=nf(1);
+const pct=v=>N1.format(v)+"%";
+const pctS=v=>(v>0?"+":"")+N1.format(v)+"%";
+const musd=v=>"USD "+N0.format(v)+" M";
+const idx=v=>N1.format(v);
+const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e};
+const svg=(t,a)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e};
+const m2n=s=>+s.slice(0,4)*12+ +s.slice(5,7)-1;
+const n2m=n=>Math.floor(n/12)+"-"+String(n%12+1).padStart(2,"0");
+const fMes=s=>MES[+s.slice(5,7)-1]+" "+s.slice(0,4);
+const fMesL=s=>MESL[+s.slice(5,7)-1]+" de "+s.slice(0,4);
+const fTri=s=>Math.ceil(+s.slice(5,7)/3)+"º trim. "+s.slice(0,4);
+
+/* ---------- Datos ---------- */
+const grupo=g=>(D&&D.indicadores&&D.indicadores[g])||[];
+const lista=g=>{const x=grupo(g);return Array.isArray(x)?x:[]};
+const S=(g,id)=>{const s=lista(g).find(x=>x.id===id);return s?s.puntos:[]};
+const conMapa=p=>new Map(p);
+function varMes(p,k){const m=conMapa(p),o=[];for(const[f,v]of p){const a=m.get(n2m(m2n(f)-k));if(a)o.push([f,(v/a-1)*100])}return o}
+const mom=p=>varMes(p,1), yoy=p=>varMes(p,12);
+function sum12(p){const m=conMapa(p),o=[];for(const[f]of p){let s=0,ok=true;for(let i=0;i<12;i++){const v=m.get(n2m(m2n(f)-i));if(v==null){ok=false;break}s+=v}if(ok)o.push([f,s])}return o}
+function sumar(gs){const m=new Map();const cnt=new Map();for(const s of gs)for(const[f,v]of s.puntos){m.set(f,(m.get(f)||0)+v);cnt.set(f,(cnt.get(f)||0)+1)}return[...m.entries()].sort((a,b)=>a[0]<b[0]?-1:1)}
+function base100(p,f0){const m=conMapa(p),b=m.get(f0);return b?p.filter(x=>x[0]>=f0).map(([f,v])=>[f,v/b*100]):[]}
+function real(p,def){const m=conMapa(def),o=[];for(const[f,v]of p){const d=m.get(f);if(d)o.push([f,v/d])}return o}
+const ult=p=>p.length?p[p.length-1]:null;
+const totalDe=g=>sumar(lista(g));
+
+/* ---------- Motor de gráficos ---------- */
+let anios=5;
+const graficos=[];
+const cut=p=>{if(!anios||!p.length)return p;const lim=m2n(p[p.length-1][0])-anios*12;return p.filter(x=>m2n(x[0])>lim)};
+function nice(min,max,n){const paso0=(max-min||1)/n,e=Math.pow(10,Math.floor(Math.log10(paso0))),r=paso0/e,paso=(r<1.5?1:r<3?2:r<7?5:10)*e;const a=Math.floor(min/paso)*paso,b=Math.ceil(max/paso)*paso,t=[];for(let v=a;v<=b+paso/2;v+=paso)t.push(+v.toFixed(8));return t}
+function etiq(v,paso){const a=Math.abs(paso);return new Intl.NumberFormat("es-AR",{maximumFractionDigits:a>=1?0:a>=.1?1:2}).format(v)}
+
+function figura(o){
+  const f=el("figure","g");f.append(el("h3",null,o.titulo));
+  if(o.nota)f.append(el("p","nota",o.nota));
+  const ley=el("div","leyenda");f.append(ley);
+  const li=el("div","lienzo");f.append(li);
+  const pie=el("div","pie");pie.append(el("span",null,"Fuente: INDEC, "+SERV[o.fuente]+"."));
+  const btn=el("button",null,"Ver tabla");btn.type="button";const btnC=el("button",null,"Descargar CSV");btnC.type="button";
+  const acc=el("span");acc.style.display="inline-flex";acc.style.gap="12px";acc.append(btn,btnC);pie.append(acc);f.append(pie);
+  const tb=el("div","tabla");tb.hidden=true;f.append(tb);
+  btn.onclick=()=>{tb.hidden=!tb.hidden;btn.textContent=tb.hidden?"Ver tabla":"Ocultar tabla";if(!tb.hidden)tabla(o,tb)};
+  btnC.onclick=()=>csv(o);
+  const g={o,li,ley,tb};graficos.push(g);return{f,g};
+}
+function filasDe(o){
+  if(o.tipo==="hbar")return{cab:[o.etiqueta||"Categoría",o.columna||"Valor"],filas:o.items().map(i=>[i.nombre,o.fmt(i.valor)]),crudo:o.items().map(i=>[i.nombre,i.valor])};
+  const ser=o.series().filter(s=>s.puntos.length);const fs=[...new Set(ser.flatMap(s=>cut(s.puntos).map(p=>p[0])))].sort().reverse();
+  const ms=ser.map(s=>conMapa(s.puntos));
+  return{cab:["Período",...ser.map(s=>s.nombre)],filas:fs.map(f=>[o.tri?fTri(f):fMes(f),...ms.map(m=>m.has(f)?o.fmt(m.get(f)):"–")]),crudo:fs.map(f=>[f,...ms.map(m=>m.has(f)?+m.get(f).toFixed(3):"")])};
+}
+function tabla(o,c){c.textContent="";const{cab,filas}=filasDe(o);const t=el("table"),h=el("thead"),r=el("tr");cab.forEach(x=>{const th=el("th",null,x);th.scope="col";r.append(th)});h.append(r);t.append(h);const b=el("tbody");filas.forEach(fi=>{const tr=el("tr");fi.forEach(x=>tr.append(el("td",null,x)));b.append(tr)});t.append(b);c.append(t)}
+function csv(o){const{cab,crudo}=filasDe(o);const q=x=>'"'+String(x).replace(/"/g,'""')+'"';const txt="﻿"+[cab,...crudo].map(r=>r.map(q).join(";")).join("\n");const a=el("a");a.href=URL.createObjectURL(new Blob([txt],{type:"text/csv;charset=utf-8"}));a.download=o.titulo.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g,"-")+".csv";a.click();URL.revokeObjectURL(a.href)}
+function leyenda(c,items,rect){c.textContent="";if(items.length<2)return;items.forEach(s=>{const sp=el("span");const i=el("i");i.style.background=`var(--${s.c})`;if(rect){i.style.height="10px";i.style.width="10px"}sp.append(i,document.createTextNode(s.nombre));c.append(sp)})}
+
+function dibujar(g){
+  const{o,li,ley,tb}=g;li.textContent="";if(!tb.hidden)tabla(o,tb);
+  if(o.tipo==="hbar")return hbar(g);
+  const ser=o.series().map(s=>({...s,p:cut(s.puntos)})).filter(s=>s.p.length);
+  leyenda(ley,ser,false);
+  if(!ser.length){li.append(el("div","sin","Sin datos para este gráfico."));return}
+  const W=Math.max(280,li.clientWidth),H=o.alto||(W<480?220:260);
+  const dcha=(o.tipo==="line"&&ser.length<=4&&W>=420)?Math.min(112,W*.24):10;
+  const M={t:16,r:dcha,b:24,l:44},iw=W-M.l-M.r,ih=H-M.t-M.b;
+  const xs=[...new Set(ser.flatMap(s=>s.p.map(p=>m2n(p[0]))))].sort((a,b)=>a-b);
+  const x0=xs[0],x1=xs[xs.length-1],esBar=o.tipo==="bar";
+  const pasoBar=esBar?iw/Math.max(1,(x1-x0+1)):0;
+  const X=n=>esBar?M.l+(n-x0+.5)*pasoBar:M.l+(x1===x0?iw/2:(n-x0)/(x1-x0)*iw);
+  let vals=ser.flatMap(s=>s.p.map(p=>p[1]));let lo=Math.min(...vals),hi=Math.max(...vals);
+  if(esBar||o.cero)lo=Math.min(0,lo),hi=Math.max(0,hi);
+  if(o.ref!=null){lo=Math.min(lo,o.ref);hi=Math.max(hi,o.ref)}
+  const tk=nice(lo,hi,W<480?4:5),a=tk[0],b=tk[tk.length-1],Y=v=>M.t+(b-v)/(b-a||1)*ih,paso=tk.length>1?tk[1]-tk[0]:1;
+  const s=svg("svg",{viewBox:`0 0 ${W} ${H}`,height:H,role:"img",tabindex:0,"aria-label":o.titulo+". Mové con las flechas para leer los valores; la tabla tiene todos los datos."});
+  for(const v of tk){
+    s.append(svg("line",{x1:M.l,x2:M.l+iw,y1:Y(v),y2:Y(v),stroke:v===0?"var(--base)":"var(--grilla)","stroke-width":1}));
+    const t=svg("text",{x:M.l-6,y:Y(v)+4,"text-anchor":"end","font-size":11,fill:"var(--eje)","style":"font-variant-numeric:tabular-nums"});t.textContent=etiq(v,paso);s.append(t);
+  }
+  const span=(x1-x0)/12,pa=span>12?3:span>6?2:1;
+  for(let y=Math.ceil(x0/12);y*12<=x1;y++){if(y%pa)continue;const t=svg("text",{x:X(y*12),y:H-7,"text-anchor":"middle","font-size":11,fill:"var(--eje)"});t.textContent=y;s.append(t)}
+  if(span<1.2){const t=svg("text",{x:X(x0),y:H-7,"text-anchor":"start","font-size":11,fill:"var(--eje)"});t.textContent=fMes(n2m(x0));s.append(t)}
+  if(!o.sinEventos&&W>=420)for(const[f,n]of EVENTOS){const k=m2n(f);if(k<=x0||k>=x1)continue;
+    s.append(svg("line",{x1:X(k),x2:X(k),y1:M.t,y2:M.t+ih,stroke:"var(--base)","stroke-width":1}));
+    const t=svg("text",{x:X(k)+3,y:M.t-4,"font-size":10.5,fill:"var(--t3)"});t.textContent=n;s.append(t)}
+  if(esBar){
+    const w=Math.max(1,Math.min(14,pasoBar-Math.min(2,pasoBar*.25))),r=w>=6?2:0,z=Y(0);
+    for(const[f,v]of ser[0].p){const px=X(m2n(f))-w/2,py=Y(Math.max(v,0)),h=Math.max(.5,Math.abs(Y(v)-z));
+      const c=o.dif&&v<0?"var(--neg)":`var(--${ser[0].c})`;
+      s.append(svg("rect",{x:px,y:py,width:w,height:h,rx:r,fill:c}))}
+  }else{
+    for(const se of ser){let d="",prev=null;for(const[f,v]of se.p){const n=m2n(f);d+=(prev==null||(n-prev)>(o.tri?3:1)?"M":"L")+X(n).toFixed(1)+" "+Y(v).toFixed(1);prev=n}
+      s.append(svg("path",{d,fill:"none",stroke:`var(--${se.c})`,"stroke-width":2,"stroke-linejoin":"round","stroke-linecap":"round"}))}
+    if(dcha>10){const lb=ser.map(se=>{const u=se.p[se.p.length-1];return{y:Y(u[1]),x:X(m2n(u[0])),txt:se.corto||se.nombre,v:o.fmt(u[1]),c:se.c}}).sort((a,b)=>a.y-b.y);
+      for(let i=1;i<lb.length;i++)if(lb[i].y-lb[i-1].y<24)lb[i].y=lb[i-1].y+24;
+      const sob=lb.length?lb[lb.length-1].y-(H-M.b+2):0;if(sob>0)lb.forEach(l=>l.y-=sob);
+      for(const l of lb){s.append(svg("circle",{cx:l.x,cy:Y(ser.find(z=>z.c===l.c).p.slice(-1)[0][1]),r:3,fill:`var(--${l.c})`,stroke:"var(--sup)","stroke-width":1.5}));
+        const t=svg("text",{x:M.l+iw+7,y:l.y-1,"font-size":11.5,"font-weight":650,fill:"var(--t1)"});t.textContent=l.v;s.append(t);
+        const t2=svg("text",{x:M.l+iw+7,y:l.y+11,"font-size":10.5,fill:"var(--t2)"});t2.textContent=l.txt.length>16?l.txt.slice(0,15)+"…":l.txt;s.append(t2)}}
+  }
+  const cr=svg("line",{y1:M.t,y2:M.t+ih,stroke:"var(--eje)","stroke-width":1,opacity:0});s.append(cr);
+  const puntos=ser.map(se=>{const c=svg("circle",{r:4,fill:`var(--${se.c})`,stroke:"var(--sup)","stroke-width":2,opacity:0});s.append(c);return c});
+  li.append(s);
+  const mapas=ser.map(se=>conMapa(se.p));const tip=el("div","tip");tip.hidden=true;li.append(tip);let idxAct=xs.length-1;
+  function mostrar(i){idxAct=i;const n=xs[i],f=n2m(n),px=X(n);cr.setAttribute("x1",px);cr.setAttribute("x2",px);cr.setAttribute("opacity",1);
+    tip.textContent="";tip.append(el("div","f",o.tri?fTri(f):fMesL(f)));
+    ser.forEach((se,k)=>{const v=mapas[k].get(f);const c=puntos[k];if(v==null){c.setAttribute("opacity",0);return}if(!esBar){c.setAttribute("cx",px);c.setAttribute("cy",Y(v));c.setAttribute("opacity",1)}
+      const r=el("div","r"),i2=el("i");i2.style.background=`var(--${se.c})`;r.append(i2,el("b",null,o.fmt(v)));if(ser.length>1)r.append(el("span",null,se.nombre));tip.append(r)});
+    tip.hidden=false;const tw=tip.offsetWidth;let l=px+12;if(l+tw>W)l=px-tw-12;tip.style.left=Math.max(0,l)+"px";tip.style.top=M.t+"px"}
+  function ocultar(){tip.hidden=true;cr.setAttribute("opacity",0);puntos.forEach(c=>c.setAttribute("opacity",0))}
+  s.addEventListener("pointermove",e=>{const b=s.getBoundingClientRect(),px=(e.clientX-b.left)/b.width*W;let m=0,dm=1e9;xs.forEach((n,i)=>{const d=Math.abs(X(n)-px);if(d<dm){dm=d;m=i}});mostrar(m)});
+  s.addEventListener("pointerleave",ocultar);s.addEventListener("focus",()=>mostrar(idxAct));s.addEventListener("blur",ocultar);
+  s.addEventListener("keydown",e=>{if(e.key==="ArrowLeft"){e.preventDefault();mostrar(Math.max(0,idxAct-1))}if(e.key==="ArrowRight"){e.preventDefault();mostrar(Math.min(xs.length-1,idxAct+1))}});
+}
+function hbar(g){
+  const{o,li,ley}=g;ley.textContent="";const it=o.items();
+  if(!it.length){li.append(el("div","sin","Sin datos para este gráfico."));return}
+  const W=Math.max(280,li.clientWidth),fila=26,H=it.length*fila+6,lab=Math.min(W*.42,190),der=62;
+  const hay=it.some(i=>i.valor<0),mx=Math.max(...it.map(i=>Math.abs(i.valor)))||1;
+  const area=W-lab-der-(hay?der:0),z=lab+(hay?der+area*Math.max(0,-Math.min(...it.map(i=>i.valor)))/(mx+Math.max(0,-Math.min(...it.map(i=>i.valor)))):0);
+  const esc=hay?area/(Math.max(0,...it.map(i=>i.valor))+Math.max(0,-Math.min(...it.map(i=>i.valor)))||1):area/mx;
+  const s=svg("svg",{viewBox:`0 0 ${W} ${H}`,height:H,role:"img","aria-label":o.titulo});
+  s.append(svg("line",{x1:z,x2:z,y1:0,y2:H,stroke:"var(--base)","stroke-width":1}));
+  it.forEach((i,k)=>{const y=k*fila+4,w=Math.max(1,Math.abs(i.valor)*esc),x=i.valor>=0?z:z-w;
+    const t=svg("text",{x:lab-8,y:y+13,"text-anchor":"end","font-size":12,fill:"var(--t2)"});const mxc=Math.floor(lab/6.3);t.textContent=i.nombre.length>mxc?i.nombre.slice(0,mxc-1)+"…":i.nombre;const ti=svg("title",{});ti.textContent=i.nombre+": "+o.fmt(i.valor);t.append(ti);s.append(t);
+    s.append(svg("rect",{x,y:y+2,width:w,height:14,rx:2,fill:i.valor<0&&o.dif?"var(--neg)":"var(--s1)"}));
+    const v=svg("text",{x:i.valor>=0?z+w+6:z-w-6,y:y+13,"text-anchor":i.valor>=0?"start":"end","font-size":12,"font-weight":600,fill:"var(--t1)","style":"font-variant-numeric:tabular-nums"});v.textContent=o.fmt(i.valor);s.append(v)});
+  li.append(s);
+}
+const redibujar=()=>graficos.forEach(dibujar);
+
+/* ---------- Página ---------- */
+const app=document.getElementById("app");
+const L=(g,id,c,nombre,corto)=>({id,c,nombre,corto,puntos:S(g,id)});
+function seccion(id,titulo,bajada,lecturaFn,graf,expl){
+  const s=el("section","ind");s.id=id;s.append(el("h2",null,titulo));const b=el("p","bajada",bajada);s.append(b);
+  const lec=lecturaFn();if(lec){const d=el("div","lectura");d.append(el("strong","t","Último dato"));d.append(el("p",null,lec));s.append(d)}
+  const gr=el("div","grid");s.append(gr);graf.forEach(o=>gr.append(figura(o).f));
+  const e=el("div","expl");expl.forEach(([h,t])=>{const w=el("div");w.append(el("h4",null,h),el("p",null,t));e.append(w)});s.append(e);app.append(s);
+}
+const dif=v=>v>0?"subió":v<0?"cayó":"quedó igual";
+
+function armar(){
+  const emaeO=S("emae","original"),emaeD=S("emae","desest"),ipc=S("ipc","general");
+  const expoT=totalDe("expo"),impoT=totalDe("impo"),expo12=sum12(expoT),impo12=sum12(impoT);
+  const salT=S("salarios","total"),salR=base100Real(salT,ipc);
+  const des=S("trabajo","tasa_de_desocupacion");
+  tiles([
+    ["#emae","EMAE, variación interanual",ult(yoy(emaeO)),pctS,fMes],
+    ["#comercio","Saldo comercial, últimos 12 meses",(()=>{const u=ult(expo12),m=u&&conMapa(impo12).get(u[0]);return u&&m!=null?[u[0],u[1]-m]:null})(),musd,fMes],
+    ["#ipc","IPC, variación mensual",ult(mom(ipc)),pct,fMes],
+    ["#ipc","IPC, variación interanual",ult(yoy(ipc)),pct,fMes],
+    ["#salarios","Salario real, variación interanual",ult(yoy(real(salT,ipc))),pctS,fMes],
+    ["#trabajo","Desocupación",ult(des),pct,fTri],
+  ]);
+
+  seccion("emae","Actividad económica (EMAE)","Es la señal mensual más cercana al PBI: mide cómo evoluciona la producción de bienes y servicios de toda la economía.",
+    ()=>{const y=ult(yoy(emaeO)),m=ult(mom(emaeD));if(!y)return null;let t=`En ${fMesL(y[0])} la actividad ${dif(y[1])} ${pct(Math.abs(y[1]))} interanual`;if(m)t+=` y, sin estacionalidad, ${dif(m[1])} ${pct(Math.abs(m[1]))} contra el mes anterior`;
+      const sec=rankSectores().filter(x=>!/^Impuestos/.test(x.nombre));if(sec.length>1)t+=`. El mejor sector fue ${corto(sec[0].nombre).toLowerCase()} (${pctS(sec[0].valor)}) y el peor, ${corto(sec[sec.length-1].nombre).toLowerCase()} (${pctS(sec[sec.length-1].valor)})`;return t+"."},
+    [{tipo:"line",titulo:"Nivel de actividad",nota:"Índice base 2004=100.",fuente:"emae",fmt:idx,series:()=>[L("emae","desest","s1","Desestacionalizada","Desest."),L("emae","tendencia","s2","Tendencia-ciclo","Tendencia")]},
+     {tipo:"bar",dif:true,titulo:"Variación interanual",nota:"Serie original contra el mismo mes del año anterior, en %.",fuente:"emae",fmt:pctS,series:()=>[{id:"v",c:"s1",nombre:"Var. i.a.",puntos:yoy(emaeO)}]},
+     {tipo:"hbar",dif:true,titulo:"Sectores: variación interanual del último mes",nota:"Ordenados de mayor a menor, en %.",fuente:"emae",fmt:pctS,etiqueta:"Sector",columna:"Var. i.a.",items:rankSectores}],
+    [["Qué conviene mirar","La serie original está dominada por el calendario, como la cosecha gruesa del segundo trimestre. Para el mes a mes sirve la desestacionalizada; la tendencia-ciclo suaviza el ruido y muestra la dirección."],
+     ["Qué la mueve","El agro aporta los mayores saltos por el clima; una sequía como la de 2023 se ve con fuerza en el índice. La industria y el comercio siguen al poder adquisitivo y al crédito, y suelen marcar el ciclo interno."],
+     ["Cómo no confundirse","Una variación interanual alta puede ser solo rebote: si el año anterior fue muy malo, compara contra una base baja. Conviene contrastarla con el nivel del índice para ver si realmente se superaron los máximos previos."]]);
+
+  seccion("comercio","Exportaciones e importaciones de bienes","Lo que el país vende y compra al mundo en dólares. Su diferencia, el saldo comercial, es la principal fuente genuina de divisas.",
+    ()=>{const e=ult(expo12);if(!e)return null;const i=conMapa(impo12).get(e[0]),ey=ult(yoy(expo12)),iy=ult(yoy(impo12));let t=`En los 12 meses a ${fMesL(e[0])} se exportaron ${musd(e[1])}`;if(ey)t+=` (${pctS(ey[1])} interanual)`;if(i!=null){t+=` y se importaron ${musd(i)}`;if(iy)t+=` (${pctS(iy[1])})`;t+=`: el saldo fue ${i<e[1]?"superavitario":"deficitario"} en ${musd(Math.abs(e[1]-i))}`}return t+"."},
+    [{tipo:"line",titulo:"Exportaciones e importaciones",nota:"Acumulado de 12 meses, en millones de USD.",fuente:"expo",fmt:v=>N0.format(v),series:()=>[{id:"e",c:"s1",nombre:"Exportaciones",puntos:expo12},{id:"i",c:"s2",nombre:"Importaciones",puntos:impo12}]},
+     {tipo:"bar",dif:true,titulo:"Saldo comercial",nota:"Acumulado de 12 meses, en millones de USD.",fuente:"expo",fmt:v=>N0.format(v),series:()=>[{id:"s",c:"s1",nombre:"Saldo",puntos:expo12.filter(x=>conMapa(impo12).has(x[0])).map(([f,v])=>[f,v-conMapa(impo12).get(f)])}]},
+     {tipo:"line",titulo:"Exportaciones por gran rubro",nota:"Acumulado de 12 meses, en millones de USD. No incluye las operaciones confidenciales.",fuente:"expo",fmt:v=>N0.format(v),series:()=>lista("expo").filter(s=>s.id!=="9").map((s,i)=>({id:s.id,c:"s"+(i+1),nombre:s.nombre,corto:CORTOS[s.id],puntos:sum12(s.puntos)}))},
+     {tipo:"hbar",titulo:"Importaciones por uso económico",nota:"Últimos 12 meses, en millones de USD.",fuente:"impo",fmt:v=>N0.format(v),etiqueta:"Uso",columna:"USD M",items:()=>lista("impo").map(s=>{const u=ult(sum12(s.puntos));return{nombre:s.nombre,valor:u?u[1]:0}}).sort((a,b)=>b.valor-a.valor)},
+     {tipo:"hbar",titulo:"Principales destinos de exportación",nota:"Últimos 12 meses publicados, en millones de USD. «Indeterminado» reúne sobre todo operaciones confidenciales.",fuente:"expo",fmt:v=>N0.format(v),etiqueta:"País",columna:"USD M",items:()=>(grupo("expo_destinos").paises||[])},
+     {tipo:"hbar",titulo:"Principales orígenes de importación",nota:"Últimos 12 meses publicados, en millones de USD.",fuente:"impo",fmt:v=>N0.format(v),etiqueta:"País",columna:"USD M",items:()=>(grupo("impo_origenes").paises||[])}],
+    [["Exportaciones: precio y cosecha","Los productos primarios y las manufacturas de origen agropecuario dependen de la cosecha y de los precios internacionales. Por eso una sequía recorta dólares aunque nada cambie en la política económica. Combustibles y energía suman un motor menos atado al clima."],
+     ["Importaciones: el espejo de la actividad","Crecen cuando la economía se expande y el dólar está barato, y caen en recesiones o con restricciones de acceso a divisas. Los bienes de capital y los intermedios anticipan inversión y producción; bienes de consumo y vehículos reflejan más la demanda."],
+     ["Por qué 12 meses","El comercio es muy estacional y las compras grandes generan picos. La suma móvil elimina ese ruido. Las exportaciones se miden FOB y las importaciones CIF, que incluye flete y seguro: es la misma convención del balance que publica el INDEC."],
+     ["Operaciones confidenciales","Desde 2018 una parte de las exportaciones se publica como confidencial, sin rubro ni país, para proteger el secreto estadístico. Suman al total pero no a cada rubro, así que un rubro puede parecer más chico de lo que es. Además, algunas filas no informan su valor y quedan fuera de las sumas de este tablero."]]);
+
+  seccion("ipc","Precios al consumidor (IPC)","Mide cuánto cambia el costo de una canasta representativa de consumo en todo el país, con base diciembre de 2016.",
+    ()=>{const m=ult(mom(ipc)),y=ult(yoy(ipc));if(!m)return null;let t=`Los precios subieron ${pct(m[1])} en ${fMesL(m[0])}`;if(y)t+=` y acumulan ${pct(y[1])} en 12 meses`;const n=ult(mom(S("ipc_categorias","nucleo")));if(n)t+=`. La inflación núcleo, que excluye regulados y estacionales, fue ${pct(n[1])}`;return t+"."},
+    [{tipo:"bar",titulo:"Inflación mensual",nota:"Variación del nivel general respecto del mes anterior, en %.",fuente:"ipc",fmt:pct,series:()=>[{id:"m",c:"s1",nombre:"Var. mensual",puntos:mom(ipc)}]},
+     {tipo:"line",cero:true,titulo:"Inflación interanual",nota:"Variación contra el mismo mes del año anterior, en %.",fuente:"ipc",fmt:pct,series:()=>[{id:"y",c:"s1",nombre:"Var. i.a.",puntos:yoy(ipc)}]},
+     {tipo:"line",titulo:"Núcleo, regulados y estacionales",nota:"Variación mensual, en %.",fuente:"ipc",fmt:pct,series:()=>[{id:"n",c:"s1",nombre:"Núcleo",puntos:mom(S("ipc_categorias","nucleo"))},{id:"r",c:"s2",nombre:"Regulados",puntos:mom(S("ipc_categorias","regulados"))},{id:"e",c:"s3",nombre:"Estacionales",puntos:mom(S("ipc_categorias","estacionales"))}]},
+     {tipo:"hbar",titulo:"Divisiones: variación interanual",nota:"Último mes, de mayor a menor, en %.",fuente:"ipc",fmt:pct,etiqueta:"División",columna:"Var. i.a.",items:()=>rank("ipc_divisiones")}],
+    [["Núcleo primero","La categoría núcleo es la mejor señal de la tendencia. Regulados, como tarifas y prepagas, dependen de decisiones administrativas; estacionales, como verduras y turismo, rebotan solos. Si el dato mensual sube pero la núcleo no, el salto puede ser transitorio."],
+     ["Dólar e inercia","Una devaluación se traslada rápido a los precios, como en diciembre de 2023. Después, contratos y paritarias indexados hacen que la inflación baje más despacio de lo que subió."],
+     ["Lectura de divisiones","Cuando servicios y alimentos se mueven a ritmos distintos cambian los precios relativos. Tras un atraso tarifario, por ejemplo, vivienda y transporte pueden liderar aunque la inflación general esté bajando."]]);
+
+  seccion("salarios","Salarios","Sigue los salarios pagados aislando horas trabajadas, premios y otros efectos individuales. Lo clave es compararlos contra los precios.",
+    ()=>{const y=ult(yoy(salT)),r=ult(yoy(real(salT,ipc)));if(!y)return null;let t=`En ${fMesL(y[0])} los salarios subieron ${pct(y[1])} interanual`;if(r)t+=`; descontada la inflación, el poder de compra ${dif(r[1])} ${pct(Math.abs(r[1]))}`;return t+"."},
+    [{tipo:"line",titulo:"Salario real por sector",nota:"Índice deflactado por IPC, diciembre de 2016 = 100 (cálculo propio).",fuente:"sal",fmt:idx,sinEventos:false,ref:100,series:()=>["privado_registrado:s1:Privado registrado:Priv. reg.","publico:s2:Público:Público","no_registrado:s3:Privado no registrado:No reg."].map(x=>{const[i,c,n,co]=x.split(":");return{id:i,c,nombre:n,corto:co,puntos:base100Real(S("salarios",i),ipc)}})},
+     {tipo:"bar",dif:true,titulo:"Salario real total: variación interanual",nota:"En %. Valores negativos indican pérdida contra la inflación.",fuente:"sal",fmt:pctS,series:()=>[{id:"r",c:"s1",nombre:"Salario real",puntos:yoy(real(salT,ipc))}]}],
+    [["Tres mercados distintos","El privado registrado negocia en paritarias y es el más estable. El público depende de la situación fiscal. El no registrado no tiene convenio y muestra las oscilaciones más grandes: se hundió tras la devaluación de fines de 2023 y luego rebotó con fuerza. Además se mide con rezago, por lo que sus últimos meses reflejan el pasado."],
+     ["Por qué importa","El salario real es el puente entre los precios y el consumo: cuando cae, se resienten el comercio y la industria orientada al mercado interno, y eso vuelve a verse en el EMAE."]]);
+
+  seccion("icc","Costo de la construcción (ICC)","Mide el costo de construir un edificio tipo en el Gran Buenos Aires. Es referencia para contratos y presupuestos de obra.",
+    ()=>{const g=S("icc","general"),m=ult(mom(g)),y=ult(yoy(g));if(!m)return null;let t=`En ${fMesL(m[0])} el costo de construir varió ${pctS(m[1])} mensual`;if(y)t+=` y ${pctS(y[1])} interanual`;return t+"."},
+    [{tipo:"line",cero:true,titulo:"Variación interanual por capítulo",nota:"En %.",fuente:"icc",fmt:pct,series:()=>[{id:"m",c:"s1",nombre:"Materiales",puntos:yoy(S("icc","materiales"))},{id:"o",c:"s2",nombre:"Mano de obra",puntos:yoy(S("icc","mano_obra"))},{id:"g",c:"s3",nombre:"Gastos generales",puntos:yoy(S("icc","gastos"))}]},
+     {tipo:"bar",titulo:"Nivel general: variación mensual",nota:"En %.",fuente:"icc",fmt:pctS,dif:true,series:()=>[{id:"g",c:"s1",nombre:"Var. mensual",puntos:mom(S("icc","general"))}]}],
+    [["Materiales contra mano de obra","Los materiales reaccionan pronto al dólar y a los insumos importados. La mano de obra avanza a saltos, en los meses en que se aplican los aumentos de paritarias: de ahí los picos aislados en la variación mensual."],
+     ["Dolarización de la obra","Si el ICC sube menos que el dólar, construir se abarata medido en dólares, lo que influye en la decisión de invertir en ladrillos. Cubre solo el Gran Buenos Aires, así que no refleja costos regionales."]]);
+
+  const tr=[["tasa_de_actividad","s1","Actividad"],["tasa_de_empleo","s2","Empleo"]];
+  seccion("trabajo","Principales tasas del mercado de trabajo (EPH)","Encuesta trimestral a hogares del total de 31 aglomerados urbanos. No incluye población rural.",
+    ()=>{const d=ult(des);if(!d)return null;const a=conMapa(S("trabajo","tasa_de_actividad")).get(d[0]),e=conMapa(S("trabajo","tasa_de_empleo")).get(d[0]),u=conMapa(S("trabajo","tasa_de_subocupacion")).get(d[0]);let t=`En el ${fTri(d[0])} la desocupación fue ${pct(d[1])}`;if(u!=null)t+=` y la subocupación, ${pct(u)}`;if(a!=null&&e!=null)t+=`. La actividad se ubicó en ${pct(a)} y el empleo en ${pct(e)}`;return t+"."},
+    [{tipo:"line",tri:true,titulo:"Actividad y empleo",nota:"En % de la población total.",fuente:"eph",fmt:pct,series:()=>tr.map(([i,c,n])=>L("trabajo",i,c,n))},
+     {tipo:"line",tri:true,cero:true,titulo:"Desocupación y subocupación",nota:"En % de la población económicamente activa.",fuente:"eph",fmt:pct,series:()=>[L("trabajo","tasa_de_desocupacion","s1","Desocupación"),L("trabajo","tasa_de_subocupacion","s2","Subocupación")]},
+     {tipo:"line",tri:true,titulo:"Empleo formal e informal",nota:"En % de la población total. Disponible desde el 4º trimestre de 2023.",sinEventos:true,fuente:"eph",fmt:pct,series:()=>[L("trabajo","tasa_de_empleo_formal","s1","Formal"),L("trabajo","tasa_de_empleo_informal","s2","Informal")]}],
+    [["Leer las tres juntas","La desocupación puede subir sin que se pierdan empleos, si más personas salen a buscar trabajo; y puede bajar porque la gente deja de buscar. Por eso se interpreta junto con actividad y empleo."],
+     ["La calidad también cuenta","La Argentina suele ajustar más por calidad que por cantidad: en una crisis crecen la informalidad y la subocupación antes que la desocupación. La informalidad funciona como colchón que amortigua la pérdida de puestos."],
+     ["Estacionalidad","La serie no está desestacionalizada y el primer trimestre suele mostrar más desocupación. Conviene comparar contra el mismo trimestre del año anterior, no contra el previo."]]);
+
+  seccion("mayoristas","Precios mayoristas (SIPM)","Mide los precios en las primeras etapas de comercialización: IPIM, IPIB e IPP, según incluyan o no impuestos e importados.",
+    ()=>{const g=S("sipm","ipim"),m=ult(mom(g)),y=ult(yoy(g));if(!m)return null;let t=`El IPIM varió ${pctS(m[1])} en ${fMesL(m[0])}`;if(y)t+=` y ${pctS(y[1])} interanual`;const c=conMapa(yoy(ipc)).get(m[0]);if(y&&c!=null)t+=`, ${y[1]>c?"por encima":"por debajo"} del ${pct(c)} del IPC`;return t+"."},
+    [{tipo:"line",cero:true,titulo:"Mayoristas y minoristas",nota:"Variación interanual, en %.",fuente:"sipm",fmt:pct,series:()=>[{id:"m",c:"s1",nombre:"IPIM (mayoristas)",corto:"IPIM",puntos:yoy(S("sipm","ipim"))},{id:"c",c:"s2",nombre:"IPC (consumidor)",corto:"IPC",puntos:yoy(ipc)}]},
+     {tipo:"line",titulo:"Productos nacionales e importados",nota:"IPIM, variación mensual en %.",fuente:"sipm",fmt:pct,series:()=>[{id:"n",c:"s1",nombre:"Nacionales",puntos:mom(S("sipm","ipim_nacionales"))},{id:"i",c:"s2",nombre:"Importados",puntos:mom(S("sipm","ipim_importados"))}]},
+     {tipo:"line",titulo:"Los tres índices del sistema",nota:"Variación mensual, en %.",fuente:"sipm",fmt:pct,series:()=>[{id:"a",c:"s1",nombre:"IPIM",puntos:mom(S("sipm","ipim"))},{id:"b",c:"s2",nombre:"IPIB",puntos:mom(S("sipm","ipib"))},{id:"c",c:"s3",nombre:"IPP",puntos:mom(S("sipm","ipp"))}]}],
+    [["Cuál es cuál","El IPIM incluye productos nacionales e importados, con impuestos. El IPIB es igual pero sin impuestos. El IPP mide lo producido en el país, sin importados y sin impuestos."],
+     ["Más sensibles al dólar","Casi todo lo que miden son bienes transables, sin los servicios que pesan en el IPC. Por eso reaccionan antes y más fuerte a una devaluación, y sus saltos pueden anticipar presiones sobre los precios al consumidor."],
+     ["Costos que no siempre llegan","Una suba mayorista no se traslada completa si la demanda está débil: las empresas resignan margen. Por eso la brecha con el IPC también dice algo sobre el consumo."]]);
+}
+function base100Real(p,ipc){const r=real(p,ipc);return r.length?base100(r,r[0][0]):[]}
+function rank(g){const ls=lista(g).map(s=>{const u=ult(yoy(s.puntos));return u?{nombre:s.nombre,valor:u[1]}:null}).filter(Boolean);return ls.sort((a,b)=>b.valor-a.valor)}
+function rankSectores(){return rank("emae_sectores")}
+function tiles(items){const c=el("div","tiles");for(const[h,et,p,fmt,fFec]of items){if(!p)continue;const a=el("a","tile");a.href=h;a.append(el("div","et",et),el("div","val",fmt(p[1])),el("div","sub",fFec(p[0])));c.append(a)}app.append(c)}
+
+/* ---------- Controles ---------- */
+function preparar(){
+  const r=document.getElementById("rango");
+  const marcar=()=>r.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.a===anios)));
+  r.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;anios=+b.dataset.a;marcar();guardar("rango",anios);redibujar()});
+  const g=leer("rango");if(g!=null)anios=+g;marcar();
+  const tb=document.getElementById("tema"),rt=document.documentElement;
+  const oscuro=()=>rt.dataset.theme?rt.dataset.theme==="dark":matchMedia("(prefers-color-scheme:dark)").matches;
+  const et=()=>tb.textContent=oscuro()?"Tema claro":"Tema oscuro";
+  const t0=leer("tema");if(t0)rt.dataset.theme=t0;et();
+  tb.onclick=()=>{rt.dataset.theme=oscuro()?"light":"dark";guardar("tema",rt.dataset.theme);et()};
+}
+function leer(k){try{return localStorage.getItem("indec-"+k)}catch(e){return null}}
+function guardar(k,v){try{localStorage.setItem("indec-"+k,v)}catch(e){}}
+
+preparar();
+if(!D){
+  const a=el("div","aviso");a.append(el("strong",null,"Todavía no hay datos cargados."),el("p",null,"Falta correr scripts/actualizar.ps1 con un token de la API del INDEC. Las instrucciones están en el README."));app.append(a);
+}else{
+  document.getElementById("meta").textContent="Datos actualizados el "+new Date(D.generado).toLocaleDateString("es-AR",{day:"numeric",month:"long",year:"numeric"})+". Fuente: INDEC.";
+  armar();redibujar();
+  let w=app.clientWidth,tm;new ResizeObserver(()=>{if(app.clientWidth===w)return;w=app.clientWidth;clearTimeout(tm);tm=setTimeout(redibujar,120)}).observe(app);
+}
+</script>
+</body>
+</html>
