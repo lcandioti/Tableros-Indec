@@ -13,6 +13,7 @@ Página con gráficos y explicaciones de la economía argentina, armada con el [
 | Principales tasas (mercado de trabajo) | `mercado_trabajo_eph` |
 | Precios mayoristas | `sipm_precios_mayoristas` |
 | Dólar, tasas y reservas (BCRA) | `estadisticas/v4.0/monetarias`, variables 1, 4, 5, 7, 12, 14 y 44 |
+| Tipo de cambio real (BCRA) | Excel [`ITCRMSerie.xlsx`](https://www.bcra.gob.ar/Pdfs/PublicacionesEstadisticas/ITCRMSerie.xlsx), hoja mensual |
 
 Fuentes: INDEC y BCRA. Las variaciones, sumas de 12 meses y series reales son cálculos propios a partir de los datos publicados.
 
@@ -41,7 +42,7 @@ $env:INDEC_TOKEN = Read-Host 'Token INDEC'
 ```
 
 - `-Completo` vuelve a bajar comercio exterior desde 2016 (unos 6 minutos).
-- `-SoloBCRA` actualiza solo dólar, tasas y reservas, sin token.
+- `-SoloBCRA` actualiza solo dólar, tasas, reservas e ITCRM, sin token.
 - `-Descubrir` lista los valores de cada columna en `data/_catalogo.txt`, útil si el INDEC cambia alguna categoría.
 
 Si falta una serie imprescindible, el script se detiene sin tocar los datos publicados, y GitHub avisa del fallo por correo.

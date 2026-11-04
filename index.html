@@ -108,7 +108,7 @@ const MES=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","di
 const MESL=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 const EVENTOS=[["2019-08","PASO 2019"],["2020-03","Pandemia"],["2023-12","Devaluación"]];
 const SERV={emae:"Estimador mensual de actividad económica",expo:"Exportaciones de bienes",impo:"Importaciones de bienes",ipc:"Índice de precios al consumidor",sal:"Índice de salarios",icc:"Índice del costo de la construcción",eph:"Principales tasas del mercado de trabajo (EPH)",sipm:"Sistema de índices de precios mayoristas"};
-const FUENTE={bcra:"BCRA, Principales variables monetarias",bcra_indec:"cálculo propio con datos de BCRA e INDEC"};
+const FUENTE={bcra:"BCRA, Principales variables monetarias",bcra_indec:"cálculo propio con datos de BCRA e INDEC",itcrm:"BCRA, Índice de tipo de cambio real multilateral"};
 const D=window.INDEC_DATA;
 /* Nombres legibles: la API trae algunos en mayúsculas o sin tildes. */
 const NOMBRES={expo:{"1":"Productos primarios","2":"Manufacturas agropecuarias (MOA)","3":"Manufacturas industriales (MOI)","4":"Combustibles y energía","9":"Confidencial"},impo:{"1":"Bienes de capital","2":"Bienes intermedios","3":"Combustibles y lubricantes","4":"Piezas para bienes de capital","5":"Bienes de consumo","6":"Vehículos de pasajeros","9":"Resto"}};
@@ -275,6 +275,7 @@ function armar(){
     ["#salarios","Salario real, variación interanual",ult(yoy(real(salT,ipc))),pctS,fMes],
     ["#trabajo","Desocupación",ult(des),pct,fTri],
     ["#dolar","Dólar mayorista",uB("mayorista"),pesos,fDia],
+    ["#dolar","Tipo de cambio real (ITCRM)",ult(S("itcrm","itcrm")),idx,fMes],
     ["#dolar","Tasa BADLAR (TNA)",uB("badlar"),pct,fDia],
   ]);
 
@@ -348,17 +349,20 @@ function armar(){
   const pfReal=()=>{const m=conMapa(pf);return mom(ipc).filter(x=>m.has(x[0])).map(([f,v])=>[f,((1+m.get(f)*30/36500)/(1+v/100)-1)*100])};
   seccion("dolar","Dólar, tasas y reservas","Datos diarios del Banco Central, resumidos por mes en los gráficos. No forman parte de la API del INDEC.",
     ()=>{const d=uB("mayorista");if(!d)return null;const y=ult(yoy(may));let t=`El dólar mayorista está en ${pesos(d[1])} al ${fDiaL(d[0])}`;if(y)t+=`, ${pctS(y[1])} interanual en promedio mensual`;
+      const it=S("itcrm","itcrm"),iu=ult(it);if(iu){const pr=it.reduce((a,x)=>a+x[1],0)/it.length,dp=(iu[1]/pr-1)*100;t+=`. El tipo de cambio real multilateral fue ${idx(iu[1])} en ${fMesL(iu[0])}, ${pct(Math.abs(dp))} ${dp<0?"por debajo":"por encima"} de su promedio desde ${it[0][0].slice(0,4)}`}
       const b=uB("badlar"),p=uB("plazo_fijo");if(b&&p)t+=`. La BADLAR está en ${pct(b[1])} y el plazo fijo a 30 días en ${pct(p[1])} nominal anual`;
       const r=ult(pfReal()),i=ult(mom(ipc));if(r&&i)t+=`. En ${fMesL(r[0])} ese plazo fijo rindió ${r[1]>=0?pct(r[1])+" por encima":pct(-r[1])+" por debajo"} de la inflación del mes`;
       const re=uB("reservas");if(re)t+=`. Las reservas brutas suman ${musd(re[1])}`;return t+"."},
     [{tipo:"line",titulo:"Tipo de cambio oficial",nota:"Promedio mensual, en pesos por dólar. El último mes es parcial.",fuente:"bcra",fmt:pesos,series:()=>[L("dolar","mayorista","s1","Mayorista"),L("dolar","minorista","s2","Minorista")]},
      {tipo:"bar",dif:true,titulo:"Dólar mayorista: variación mensual",nota:"Promedio de cada mes contra el anterior, en %. El último mes es parcial.",fuente:"bcra",fmt:pctS,series:()=>[{id:"m",c:"s1",nombre:"Var. mensual",puntos:mom(may)}]},
-     {tipo:"line",ref:100,titulo:"Dólar ajustado por inflación",nota:"Mayorista deflactado por IPC, diciembre de 2016 = 100. No descuenta la inflación de otros países.",fuente:"bcra_indec",fmt:idx,series:()=>[{id:"r",c:"s1",nombre:"Dólar ajustado",puntos:base100(real(may,ipc),"2016-12")}]},
+     {tipo:"line",ref:100,titulo:"Tipo de cambio real multilateral (ITCRM)",nota:"Promedio mensual, base 17 de diciembre de 2015 = 100. Con «Todo» se ve desde 1997.",fuente:"itcrm",fmt:idx,series:()=>[L("itcrm","itcrm","s1","ITCRM")]},
+     {tipo:"line",ref:100,titulo:"Tipo de cambio real bilateral",nota:"Promedio mensual, base 17 de diciembre de 2015 = 100.",fuente:"itcrm",fmt:idx,series:()=>[L("itcrm","brasil","s1","Brasil"),L("itcrm","eeuu","s2","Estados Unidos","EE. UU."),L("itcrm","china","s3","China")]},
      {tipo:"line",cero:true,titulo:"Tasas de interés",nota:"Promedio mensual, en % nominal anual. El último mes es parcial.",fuente:"bcra",fmt:pct,series:()=>[L("tasas","badlar","s1","BADLAR"),L("tasas","plazo_fijo","s2","Plazo fijo a 30 días","Plazo fijo"),L("tasas","tamar","s3","TAMAR"),L("tasas","personales","s4","Préstamos personales","Personales")]},
      {tipo:"bar",dif:true,titulo:"Plazo fijo contra inflación",nota:"Rendimiento mensual aproximado de 30 días descontada la inflación del mes, en %.",fuente:"bcra_indec",fmt:pctS,series:()=>[{id:"r",c:"s1",nombre:"Rendimiento real",puntos:pfReal()}]},
      {tipo:"line",cero:true,titulo:"Reservas internacionales brutas",nota:"Último dato de cada mes, en millones de USD.",fuente:"bcra",fmt:v=>N0.format(v),series:()=>[L("reservas","reservas","s1","Reservas")]}],
     [["Qué dólar es este","Es el dólar oficial: el mayorista de referencia del BCRA y el promedio vendedor minorista. No incluye el dólar financiero ni el blue, que no están en esta API y pueden moverse distinto, sobre todo con restricciones cambiarias."],
-     ["Caro o barato","Si el dólar ajustado por inflación sube, está más caro frente a los precios internos: ayuda a exportar y encarece importar. Si baja, pasa lo contrario. Es una aproximación propia y no reemplaza a un tipo de cambio real multilateral, porque no considera la inflación ni las monedas de otros países."],
+     ["Caro o barato","El ITCRM compara el precio de los bienes argentinos con los de los principales socios comerciales, ponderados por su peso en el comercio. Si sube, el país se abarata frente al mundo: ayuda a exportar y encarece importar. Si baja, ocurre lo contrario. Para los meses más recientes, el BCRA puede apoyarse en expectativas de inflación, por lo que el dato puede revisarse."],
+     ["Por qué mirar los bilaterales","El promedio esconde diferencias: con Brasil pesa la competitividad industrial y regional, con Estados Unidos se refleja el dólar y con China, la competencia de sus productos. Un socio puede abaratarse mientras otro se encarece."],
      ["Cómo leer las tasas","BADLAR refleja depósitos de más de un millón de pesos a 30-35 días y TAMAR, los mayoristas de mayor monto. Los préstamos personales incluyen riesgo y costos, por eso están muy por encima. Son tasas nominales anuales: una efectiva anual da más por la capitalización."],
      ["Tasa real y reservas","Si el plazo fijo rinde menos que la inflación, quien ahorra en pesos pierde poder de compra. Las reservas son brutas: incluyen fondos que no son de libre uso, como swaps y encajes, así que las netas son menores. Caen cuando el BCRA vende dólares o paga deuda."]]);
 }

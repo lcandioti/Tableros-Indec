@@ -5,7 +5,7 @@
     .\scripts\actualizar.ps1              Actualiza los datos (comercio exterior: incremental)
     .\scripts\actualizar.ps1 -Completo    Vuelve a bajar comercio exterior desde $AnioInicioComercio
     .\scripts\actualizar.ps1 -Descubrir   Lista los valores de cada dimension en data/_catalogo.txt
-    .\scripts\actualizar.ps1 -SoloBCRA    Actualiza solo dolar, tasas y reservas (no requiere token)
+    .\scripts\actualizar.ps1 -SoloBCRA    Actualiza solo dolar, tasas, reservas e ITCRM (no requiere token)
 
   Token: variable de entorno INDEC_TOKEN (local: de usuario; GitHub Actions: secret).
   Funciona en Windows PowerShell 5.1 y en PowerShell 7.
@@ -235,6 +235,71 @@ function Sumar-BCRA {
     }
 }
 
+# ITCRM: no esta en la API del BCRA, se lee de la hoja mensual de su Excel. El xlsx se trata solo como datos.
+function Sumar-ITCRM {
+    Write-Host 'Descargando ITCRM...'
+    $tmp = [IO.Path]::GetTempFileName()
+    $zip = $null
+    try {
+        Invoke-WebRequest -Uri 'https://www.bcra.gob.ar/Pdfs/PublicacionesEstadisticas/ITCRMSerie.xlsx' -OutFile $tmp -UseBasicParsing -TimeoutSec 180
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $zip = [IO.Compression.ZipFile]::OpenRead($tmp)
+        $leer = {
+            param($n)
+            $e = $zip.GetEntry($n)
+            if (-not $e) { throw "El Excel no tiene $n" }
+            $sr = New-Object IO.StreamReader($e.Open(), [Text.Encoding]::UTF8)
+            try { $sr.ReadToEnd() } finally { $sr.Close() }
+        }
+        $hoja = [regex]::Match((& $leer 'xl/workbook.xml'), '<sheet [^>]*name="[^"]*prom\. mens\.[^"]*"[^>]*r:id="([^"]+)"')
+        if (-not $hoja.Success) { throw 'No se encontro la hoja mensual' }
+        $rel = [regex]::Matches((& $leer 'xl/_rels/workbook.xml.rels'), '<Relationship [^>]*>') | Where-Object { $_.Value -match "Id=""$($hoja.Groups[1].Value)""" } | Select-Object -First 1
+        $destino = [regex]::Match($rel.Value, 'Target="([^"]+)"').Groups[1].Value
+        $textos = @([regex]::Matches((& $leer 'xl/sharedStrings.xml'), '<si>(.*?)</si>', 'Singleline') | ForEach-Object {
+                [Net.WebUtility]::HtmlDecode((([regex]::Matches($_.Groups[1].Value, '<t[^>]*>(.*?)</t>', 'Singleline') | ForEach-Object { $_.Groups[1].Value }) -join '')).Trim()
+            })
+        $buscadas = [ordered]@{ 'ITCRM' = 'itcrm'; 'ITCRB Brasil' = 'brasil'; 'ITCRB Estados Unidos' = 'eeuu'; 'ITCRB China' = 'china' }
+        $columnas = @{}
+        $series = @{}
+        foreach ($b in $buscadas.Values) { $series[$b] = @{} }
+        foreach ($fila in [regex]::Matches((& $leer "xl/$destino"), '<row [^>]*>.*?</row>', 'Singleline')) {
+            $celdas = @{}
+            foreach ($c in [regex]::Matches($fila.Value, '<c r="([A-Z]+)\d+"([^>]*?)>(.*?)</c>', 'Singleline')) {
+                $v = [regex]::Match($c.Groups[3].Value, '<v>(.*?)</v>').Groups[1].Value
+                if ($v -eq '') { continue }
+                if ($c.Groups[2].Value -match 't="s"') { $v = $textos[[int]$v] }
+                $celdas[$c.Groups[1].Value] = $v
+            }
+            if ($columnas.Count -eq 0) {
+                if ($celdas['A'] -eq 'Período') {
+                    foreach ($col in $celdas.Keys) { if ($buscadas.Contains($celdas[$col])) { $columnas[$buscadas[$celdas[$col]]] = $col } }
+                    foreach ($b in $buscadas.Values) { if (-not $columnas.ContainsKey($b)) { throw "Falta la columna $b en el Excel" } }
+                }
+                continue
+            }
+            $n = 0.0
+            if (-not [double]::TryParse("$($celdas['A'])", [Globalization.NumberStyles]::Float, $Inv, [ref]$n)) { continue }
+            $mes = [DateTime]::FromOADate($n).ToString('yyyy-MM', $Inv)
+            foreach ($b in $columnas.Keys) {
+                $x = 0.0
+                if ([double]::TryParse("$($celdas[$columnas[$b]])", [Globalization.NumberStyles]::Float, $Inv, [ref]$x)) { $series[$b][$mes] = $x }
+            }
+        }
+        if ($series['itcrm'].Count -lt 300) { throw "ITCRM con pocas filas: $($series['itcrm'].Count)" }
+        $Indicadores['itcrm'] = A-Lista $series @{ itcrm = 'ITCRM'; brasil = 'Brasil'; eeuu = 'Estados Unidos'; china = 'China' }
+    }
+    catch {
+        # Igual que con la API: si el Excel falla o cambia de formato, se conserva lo anterior.
+        if (-not ($Anterior -and $Anterior.indicadores.itcrm)) { Write-Host "::warning::ITCRM no disponible y sin datos previos. $($_.Exception.Message)"; return }
+        Write-Host "::warning::ITCRM no disponible, se conservan los datos anteriores. $($_.Exception.Message)"
+        $Indicadores['itcrm'] = $Anterior.indicadores.itcrm
+    }
+    finally {
+        if ($zip) { $zip.Dispose() }
+        Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Guardar {
     if (-not (Test-Path $DirDatos)) { New-Item -ItemType Directory $DirDatos | Out-Null }
     $jsonInd = $Indicadores | ConvertTo-Json -Depth 8 -Compress
@@ -254,6 +319,7 @@ if ($SoloBCRA) {
     if (-not $Anterior) { throw 'SoloBCRA necesita un data/datos.json existente.' }
     foreach ($p in $Anterior.indicadores.PSObject.Properties) { $Indicadores[$p.Name] = $p.Value }
     Sumar-BCRA
+    Sumar-ITCRM
     Guardar
     return
 }
@@ -411,4 +477,5 @@ Write-Host 'Descargando importaciones (la primera vez tarda bastante)...'
 Bajar-Comercio 'comercio_exterior_importacion_bienes' 'impo_origenes' 'uso_economico_cod' 'gce_cod' 'valor_CIF' 'impo'
 
 Sumar-BCRA
+Sumar-ITCRM
 Guardar
